@@ -1,70 +1,36 @@
-'use client';
-
-import Link from 'next/link';
-import Image from 'next/image';
-import { Product } from '@/types';
-import { formatPrice } from '@/lib/utils';
-import { useCart } from '@/context/CartContext';
-import { useState } from 'react';
+import { Plus } from "lucide-react";
+import { useCart, type Product } from "@/lib/cart-context";
 
 interface ProductCardProps {
   product: Product;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { addToCart } = useCart();
-  const [isAdded, setIsAdded] = useState(false);
-
-  const handleAddToCart = () => {
-    addToCart(product, 1);
-    setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 2000);
-  };
+const ProductCard = ({ product }: ProductCardProps) => {
+  const { addItem } = useCart();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      <Link href={`/product/${product.id}`}>
-        <div className="relative h-64 w-full overflow-hidden bg-beige">
-          <Image
-            src={product.image_url}
-            alt={product.name}
-            fill
-            className="object-cover hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-      </Link>
-
-      <div className="p-4">
-        <h3 className="font-semibold text-dark text-lg mb-1 line-clamp-2">{product.name}</h3>
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xl font-bold text-dark">{formatPrice(product.price)}</span>
-          <span
-            className={`text-xs px-2 py-1 rounded-full ${
-              product.stock > 0
-                ? 'bg-green-100 text-green-700'
-                : 'bg-red-100 text-red-700'
-            }`}
-          >
-            {product.stock > 0 ? `${product.stock} left` : 'Out of stock'}
-          </span>
-        </div>
-
+    <div className="group">
+      <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted mb-4">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          loading="lazy"
+        />
         <button
-          onClick={handleAddToCart}
-          disabled={product.stock === 0}
-          className={`w-full py-2 rounded-lg font-medium transition-all ${
-            isAdded
-              ? 'bg-green-500 text-white'
-              : product.stock > 0
-              ? 'bg-soft-pink text-dark hover:bg-pink-200'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-          }`}
+          onClick={() => addItem(product)}
+          className="absolute bottom-3 right-3 w-10 h-10 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:bg-foreground hover:text-background"
+          aria-label={`Add ${product.name} to cart`}
         >
-          {isAdded ? '✓ Added' : product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+          <Plus className="w-4 h-4" strokeWidth={1.5} />
         </button>
+      </div>
+      <div className="space-y-1 px-1">
+        <h3 className="text-sm font-medium tracking-wide text-foreground">{product.name}</h3>
+        <p className="text-sm text-muted-foreground">{product.price} MAD</p>
       </div>
     </div>
   );
 };
+
+export default ProductCard;
