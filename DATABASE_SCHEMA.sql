@@ -1,58 +1,92 @@
--- TW Jewls Database Schema
--- Run these SQL commands in your Supabase SQL editor
+-- TW Jewls Checkout Schema + Migration (Supabase / PostgreSQL)
+-- Run this entire script in Supabase SQL Editor.
 
--- Products Table
-CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  price NUMERIC NOT NULL CHECK (price >= 0),
-  category TEXT NOT NULL CHECK (category IN ('necklaces', 'rings', 'bracelets')),
-  stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-  image_url TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create extension if not exists "uuid-ossp";
+
+-- Target tables (fresh installs)
+create table if not exists public.orders (
+  id uuid primary key default uuid_generate_v4(),
+  full_name text not null,
+  phone text not null,
+  city text not null,
+  address text not null,
+  note text,
+  delivery_fee numeric not null check (delivery_fee >= 0),
+  total_price numeric not null check (total_price >= 0),
+  status text not null default 'pending',
+  created_at timestamp with time zone not null default now()
 );
 
--- Orders Table
-CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  customer_name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  address TEXT NOT NULL,
-  city TEXT NOT NULL,
-  subtotal NUMERIC NOT NULL CHECK (subtotal >= 0),
-  delivery_fee NUMERIC NOT NULL CHECK (delivery_fee >= 0),
-  total NUMERIC NOT NULL CHECK (total >= 0),
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+create table if not exists public.order_items (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  product_id text not null,
+  quantity integer not null check (quantity > 0),
+  price numeric not null check (price >= 0)
 );
 
--- Order Items Table
-CREATE TABLE order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-  quantity INTEGER NOT NULL CHECK (quantity > 0),
-  price NUMERIC NOT NULL CHECK (price >= 0),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Migration for older schemas
+do $$
+begin
+  -- orders: customer_name -> full_name
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders' and column_name = 'customer_name'
+  ) then
+    alter table public.orders add column if not exists full_name text;
+    execute 'update public.orders set full_name = coalesce(full_name, customer_name)';
+    -- Keep old column nullable to avoid blocking new inserts during transition.
+    alter table public.orders alter column customer_name drop not null;
+  end if;
 
--- Create indexes for better performance
-CREATE INDEX idx_products_category ON products(category);
-CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+  -- orders: total -> total_price
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders' and column_name = 'total'
+  ) then
+    alter table public.orders add column if not exists total_price numeric;
+    execute 'update public.orders set total_price = coalesce(total_price, total)';
+    alter table public.orders alter column total drop not null;
+  end if;
 
--- Sample Data (Optional - Insert example products)
--- Uncomment to add sample products to your database
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders' and column_name = 'subtotal'
+  ) then
+    alter table public.orders alter column subtotal drop not null;
+  end if;
 
-/*
-INSERT INTO products (name, description, price, category, stock, image_url) VALUES
-('Delicate Gold Necklace', 'Elegant 18K gold-plated necklace with minimalist design', 299, 'necklaces', 10, 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500&h=500&fit=crop'),
-('Silver Minimalist Ring', 'Pure silver adjustable ring with modern aesthetic', 199, 'rings', 15, 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&h=500&fit=crop'),
-('Pearl Bracelet', 'Handcrafted bracelet with natural pearls', 399, 'bracelets', 8, 'https://images.unsplash.com/photo-1534558814975-aa79f3ee5f2f?w=500&h=500&fit=crop'),
-('Gold Chain Necklace', 'Dainty gold chain perfect for everyday wear', 249, 'necklaces', 12, 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&h=500&fit=crop'),
-('Statement Ring Set', 'Set of 3 minimalist rings in gold, silver, and rose gold', 349, 'rings', 7, 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&h=500&fit=crop');
-*/
+  alter table public.orders add column if not exists note text;
+  alter table public.orders alter column full_name set default '';
+  update public.orders set full_name = '' where full_name is null;
+  alter table public.orders alter column full_name set not null;
+
+  alter table public.orders alter column total_price set default 0;
+  update public.orders set total_price = 0 where total_price is null;
+  alter table public.orders alter column total_price set not null;
+
+  -- order_items: remove FK to products and switch product_id to text
+  if exists (
+    select 1
+    from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'order_items'
+      and constraint_name = 'order_items_product_id_fkey'
+  ) then
+    alter table public.order_items drop constraint order_items_product_id_fkey;
+  end if;
+
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'order_items' and column_name = 'product_id' and udt_name = 'uuid'
+  ) then
+    alter table public.order_items alter column product_id type text using product_id::text;
+  end if;
+end $$;
+
+create index if not exists idx_orders_created_at on public.orders(created_at desc);
+create index if not exists idx_order_items_order_id on public.order_items(order_id);
+create index if not exists idx_order_items_product_id on public.order_items(product_id);
+
+-- Optional: force PostgREST schema cache refresh immediately.
+select pg_notify('pgrst', 'reload schema');
