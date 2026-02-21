@@ -59,7 +59,7 @@ const Checkout = () => {
     try {
       setIsSubmitting(true);
 
-      await createCheckoutOrder({
+      const result = await createCheckoutOrder({
         customer: {
           fullName: form.fullName,
           phone: form.phone,
@@ -70,6 +70,10 @@ const Checkout = () => {
         cartItems: items,
         cartTotal: totalPrice,
       });
+
+      if (result.whatsappUrl) {
+        window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
+      }
 
       clearCart();
       toast({

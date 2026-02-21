@@ -20,6 +20,7 @@ export interface CreateOrderResult {
   orderId: string;
   deliveryFee: number;
   totalPrice: number;
+  whatsappUrl: string | null;
 }
 
 interface OrderInsertResult {
@@ -132,9 +133,20 @@ export const createCheckoutOrder = async ({
     throw new Error(orderItemsError.message || "Could not save order items.");
   }
 
+  const adminPhoneNumber = import.meta.env.VITE_ADMIN_PHONE_NUMBER;
+  const whatsappMessage = `New Order Received!
+Name: ${fullName}
+Phone: ${phone}
+City: ${city}
+Total: ${totalPrice} MAD`;
+  const whatsappUrl = adminPhoneNumber
+    ? `https://wa.me/${adminPhoneNumber.replace(/\D/g, "")}?text=${encodeURIComponent(whatsappMessage)}`
+    : null;
+
   return {
     orderId: order.id,
     deliveryFee,
     totalPrice,
+    whatsappUrl,
   };
 };
