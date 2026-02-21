@@ -9,6 +9,7 @@ import Checkout from "./pages/Checkout";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import OrderSuccess from "./pages/OrderSuccess";
+import { Analytics } from "@vercel/analytics/react"; // ✅ FIXED
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        <Analytics /> {/* ✅ Add it here at the root */}
       </CartProvider>
     </TooltipProvider>
   </QueryClientProvider>
