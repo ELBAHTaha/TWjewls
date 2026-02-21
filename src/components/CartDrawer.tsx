@@ -1,8 +1,10 @@
 import { X, Minus, Plus } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
+import { useNavigate } from "react-router-dom";
 
 const CartDrawer = () => {
   const { isOpen, closeCart, items, removeItem, updateQuantity, totalPrice } = useCart();
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
 
@@ -91,7 +93,13 @@ const CartDrawer = () => {
                 <span>{totalPrice} MAD</span>
               </div>
             </div>
-            <button className="w-full py-3.5 bg-foreground text-background text-sm tracking-[0.15em] uppercase rounded-full hover:bg-primary hover:text-primary-foreground transition-all duration-500">
+            <button
+              onClick={() => {
+                closeCart();
+                navigate("/checkout");
+              }}
+              className="w-full py-3.5 bg-foreground text-background text-sm tracking-[0.15em] uppercase rounded-full hover:bg-primary hover:text-primary-foreground transition-all duration-500"
+            >
               Checkout
             </button>
           </div>
